@@ -1,0 +1,85 @@
+:root {
+  --imovies-red: #e50914;
+}
+
+body {
+  background-color: #f7f8fa;
+}
+
+.app-bg {
+  min-height: 100vh;
+}
+
+.brand-text {
+  color: var(--imovies-red);
+  font-weight: 700;
+}
+
+.navbar .nav-link.active {
+  font-weight: 600;
+  color: var(--imovies-red) !important;
+}
+
+.movie-card {
+  border: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  cursor: pointer;
+}
+.movie-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.15);
+}
+.movie-card .card-img-top {
+  height: 340px;
+  object-fit: cover;
+  background: #111;
+}
+
+/* Seat map */
+.screen-bar {
+  height: 6px;
+  width: 60%;
+  margin: 0 auto 24px;
+  background: var(--imovies-red);
+  border-radius: 50%;
+  opacity: 0.85;
+}
+.seat {
+  width: 34px;
+  height: 34px;
+  border-radius: 7px 7px 3px 3px;
+  border: 1px solid #adb5bd;
+  background: #fff;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+.seat:hover:not(.taken):not(.selected) {
+  border-color: var(--imovies-red);
+}
+.seat.taken {
+  background: #6c757d;
+  border-color: #6c757d;
+  cursor: not-allowed;
+  color: #fff;
+}
+.seat.selected {
+  background: var(--imovies-red);
+  border-color: var(--imovies-red);
+  color: #fff;
+  transform: scale(1.08);
+}
+.seat-legend span {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px 5px 2px 2px;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+/* Booking status pills */
+.status-confirmed { color: #198754; }
+.status-cancelled { color: #dc3545; }
