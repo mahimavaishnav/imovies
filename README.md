@@ -12,7 +12,7 @@ A seamless online platform that enhances the cinema experience by allowing users
 |---|---|
 | 🌐 Frontend (live) | _paste your Vercel/Netlify URL here after deploying_ |
 | ⚙️ Backend API (live) | _paste your Render URL here after deploying_ |
-| 🐙 GitHub repo | _paste your repo URL here_ |
+| 🐙 GitHub repo | https://github.com/mahimavaishnav/imovies |
 
 **Health check:** `GET /api/health` → `{ "status": "ok", "service": "IMovies API" }`
 
