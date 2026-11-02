@@ -10,8 +10,28 @@ import bookingRoutes from "./routes/bookings.js";
 
 const app = express();
 
-// ---------- middleware ----------
+/* ---------- DB connection (serverless-safe) ---------- */
+async function connectDB() {
+  // Reuse cached connection across warm serverless invocations
+  if (mongoose.connection.readyState === 1) return;
+  if (!global.__mongoConnecting) {
+    global.__mongoConnecting = mongoose
+      .connect(process.env.MONGO_URI)
+      .then(() => console.log(`✅ MongoDB connected: ${mongoose.connection.host}`))
+      .catch((e) => console.error(`❌ MongoDB connection error: ${e.message}`));
+  }
+  await global.__mongoConnecting;
+}
+
 app.set("trust proxy", 1); // safe behind Render/Vercel proxies
+app.use(async (_req, res, next) => {
+  try {
+    await connectDB(); // ensure DB is connected before any route handles a request
+    next();
+  } catch (e) {
+    res.status(503).json({ message: "Database connection failed: " + e.message });
+  }
+});
 app.use(
   cors({
     origin: (process.env.CLIENT_URL || "http://localhost:5173").split(","), // e.g. "http://localhost:5173,https://imovies.vercel.app"
@@ -48,26 +68,11 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ message: err.message });
 });
 
-/* ---------- DB connection (works on both a server and Vercel serverless) ---------- */
-
-async function connectDB() {
-  // Reuse cached connection across warm serverless invocations
-  if (mongoose.connection.readyState === 1) return;
-  if (!global.__mongoConnecting) {
-    global.__mongoConnecting = mongoose
-      .connect(process.env.MONGO_URI)
-      .then(() => console.log(`✅ MongoDB connected: ${mongoose.connection.host}`))
-      .catch((e) => console.error(`❌ MongoDB connection error: ${e.message}`));
-  }
-  await global.__mongoConnecting;
-}
-
 // ---------- start server (local/Render only — Vercel imports the app instead) ----------
 export default app;
 
 if (!process.env.VERCEL) {
   const PORT = process.env.PORT || 5000;
-  await connectDB();
   app.listen(PORT, () =>
     console.log(`🎬 IMovies API running on http://localhost:${PORT}`)
   );
