@@ -1,8 +1,11 @@
 import { Routes, Route } from "react-router-dom";
+import { ToastContainer } from "react-toastify";
 import Navbar from "./components/Navbar";
 import Home from "./pages/Home";
 import MovieDetail from "./pages/MovieDetail";
+import BookingPayment from "./pages/BookingPayment";
 import MyBookings from "./pages/MyBookings";
+import Admin from "./pages/Admin";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
@@ -15,7 +18,9 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/movies/:id" element={<MovieDetail />} />
+          <Route path="/bookings/:id" element={<BookingPayment />} />
           <Route path="/my-bookings" element={<MyBookings />} />
+          <Route path="/admin" element={<Admin />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="*" element={<NotFound />} />
@@ -24,6 +29,7 @@ export default function App() {
       <footer className="text-center py-3 border-top text-secondary small">
         🎬 IMovies — Movie ticket booking made simple · Built with the MERN stack
       </footer>
+      <ToastContainer position="bottom-right" autoClose={3500} newestOnTop theme="colored" />
     </div>
   );
 }

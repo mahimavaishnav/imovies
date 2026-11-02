@@ -7,7 +7,7 @@ import { protect } from "../middleware/auth.js";
 const router = Router();
 const signToken = (user) =>
   jwt.sign(
-    { id: user._id.toString(), name: user.name, email: user.email },
+    { id: user._id.toString(), name: user.name, email: user.email, role: user.role },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
   );
@@ -24,10 +24,10 @@ router.post("/register", async (req, res) => {
       return res.status(409).json({ message: "Email already registered" });
 
     const hashed = await bcrypt.hash(password, 10);
-    const user = await User.create({ name, email, password: hashed });
+    const user = await User.create({ name, email, password: hashed, role: "user" });
     res.status(201).json({
       token: signToken(user),
-      user: { id: user._id, name: user.name, email: user.email },
+      user: { id: user._id, name: user.name, email: user.email, role: user.role },
     });
   } catch (e) {
     res.status(500).json({ message: e.message });
@@ -44,7 +44,7 @@ router.post("/login", async (req, res) => {
     }
     res.json({
       token: signToken(user),
-      user: { id: user._id, name: user.name, email: user.email },
+      user: { id: user._id, name: user.name, email: user.email, role: user.role },
     });
   } catch (e) {
     res.status(500).json({ message: e.message });

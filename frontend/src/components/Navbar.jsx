@@ -31,13 +31,18 @@ export default function Navbar() {
                 <NavLink className="nav-link" to="/my-bookings">My Bookings</NavLink>
               </li>
             )}
+            {user?.role === "admin" && (
+              <li className="nav-item">
+                <NavLink className="nav-link" to="/admin">Admin</NavLink>
+              </li>
+            )}
           </ul>
 
-          <div className="d-flex gap-2">
+          <div className="d-flex gap-2 align-items-center">
             {user ? (
               <>
-                <span className="navbar-text d-none d-md-inline me-2">
-                  Hi, {user.name}
+                <span className="badge bg-light text-dark border d-none d-md-inline">
+                  {user.role === "admin" ? "⭐ Admin" : "👤 User"} · {user.name}
                 </span>
                 <button
                   className="btn btn-outline-danger btn-sm"

@@ -1,11 +1,25 @@
 /**
- * Seeds the IMovies database with sample movies + showtimes.
+ * Seeds the IMovies database with theatres, an admin account, movies + shows.
  * Run: npm run seed   (requires MONGO_URI in .env)
+ *
+ * Demo accounts after seeding:
+ *   Admin: admin@imovies.dev / admin123
+ *   User : test@imovies.dev / test123
  */
 import "dotenv/config";
+import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import Movie from "./models/Movie.js";
 import Showtime from "./models/Showtime.js";
+import Theatre from "./models/Theatre.js";
+import User from "./models/User.js";
+
+const THEATRES = [
+  { name: "PVR Cinemas", city: "Hyderabad" },
+  { name: "IMAX Grand", city: "Hyderabad" },
+  { name: "Regal Multiplex", city: "Chennai" },
+  { name: "Cinepolis City Center", city: "Bangalore" },
+];
 
 const MOVIES = [
   {
@@ -74,16 +88,36 @@ const MOVIES = [
     poster: "https://image.tmdb.org/t/p/w500/eOHpHaso2B3Q60bI1dACq90Ga6d.jpg",
     releaseYear: 2022,
   },
+  {
+    title: "Fidaa",
+    description:
+      "A love-hate romance between a Telugu boy and a US-raised girl against the scenic backdrop of rural Telangana.",
+    genre: ["Romance", "Drama"],
+    language: "Telugu",
+    duration: 141,
+    rating: "PG",
+    poster: "https://image.tmdb.org/t/p/w500/lQvklRQ3jXJlhXI7gL5ZFn3OXnu.jpg",
+    releaseYear: 2017,
+  },
+  {
+    title: "Kaithi",
+    description:
+      "An ex-convict must transport unconscious police officers to a hospital while fending off a gang attack.",
+    genre: ["Action", "Thriller"],
+    language: "Tamil",
+    duration: 145,
+    rating: "R",
+    poster: "https://image.tmdb.org/t/p/w500/6PjVw2YSiaF9g0L9c3M0dI9vX2O.jpg",
+    releaseYear: 2019,
+  },
 ];
 
-// Generate the next 3 days from today
 const DATES = [0, 1, 2].map((d) => {
   const dt = new Date();
   dt.setDate(dt.getDate() + d);
   return dt.toISOString().slice(0, 10);
 });
 const TIMES = ["10:30 AM", "02:00 PM", "06:30 PM", "09:45 PM"];
-const THEATERS = ["PVR Cinemas", "IMAX Grand", "Regal Multiplex"];
 
 const run = async () => {
   if (!process.env.MONGO_URI) {
@@ -92,28 +126,49 @@ const run = async () => {
   }
   await mongoose.connect(process.env.MONGO_URI);
   console.log("Connected. Clearing old data...");
-  await Movie.deleteMany({});
-  await Showtime.deleteMany({});
+  await Promise.all([
+    Movie.deleteMany({}),
+    Showtime.deleteMany({}),
+    Theatre.deleteMany({}),
+    User.deleteMany({}),
+  ]);
 
-  const shows = [];
+  // Admin + demo user (role-based security)
+  await User.create([
+    { name: "IMovies Admin", email: "admin@imovies.dev", password: await bcrypt.hash("admin123", 10), role: "admin" },
+    { name: "Test User", email: "test@imovies.dev", password: await bcrypt.hash("test123", 10), role: "user" },
+  ]);
+  console.log("👤 Admin + demo user created (admin@imovies.dev / admin123, test@imovies.dev / test123)");
+
+  const theatres = await Theatre.insertMany(THEATRES);
+  console.log(`🏛 ${theatres.length} theatres created across ${THEATRES.map((t) => t.city).length} cities`);
+
+  let showCount = 0;
   for (const m of MOVIES) {
     const movie = await Movie.create(m);
-    // 2 theaters x 2 times = 4 shows per movie
-    for (const date of DATES.slice(0, 2)) {
-      for (const [t, time] of TIMES.slice(0, 2).entries()) {
-        shows.push(await Showtime.create({
-          movie: movie._id,
-          theater: THEATERS[t === 0 ? 0 : 1],
-          date,
-          time,
-          price: 8 + t * 2,
-        }));
+    const days = DATES.slice(0, 2);
+    for (const date of days) {
+      const cityTheatres = pickTheatres(theatres, movie.title);
+      for (const [i, th] of cityTheatres.entries()) {
+        const time = TIMES[(i + showCount) % TIMES.length];
+        const nextTime = TIMES[(i + showCount + 1) % TIMES.length];
+        for (const t of [time, nextTime]) {
+          await Showtime.create({ movie: movie._id, theatre: th._id, date, time: t, price: 8 + i * 2 });
+          showCount++;
+        }
       }
     }
   }
-  console.log(`✅ Seeded ${MOVIES.length} movies and ${shows.length} showtimes.`);
+  console.log(`✅ Seeded ${MOVIES.length} movies and ${showCount} shows.`);
   await mongoose.disconnect();
   process.exit(0);
+};
+
+// deterministic pseudo-random theatre selection
+const pickTheatres = (theatres, title) => {
+  const seed = title.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+  const shuffled = [...theatres].sort((a, b) => (a.name + seed) % 7 - (b.name + seed) % 7);
+  return shuffled.slice(0, 2);
 };
 
 run().catch((e) => {

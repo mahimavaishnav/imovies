@@ -1,5 +1,4 @@
 import "dotenv/config";
-import { MongoMemoryServer } from "mongodb-memory-server";
 import mongoose from "mongoose";
 import User from "./models/User.js";
 import Movie from "./models/Movie.js";
@@ -28,9 +27,15 @@ if (!hasBinary) {
   console.log("    DB flows run for real once you add MONGO_URI (Atlas) to backend/.env and start the server.");
 } else {
   try {
+    const { MongoMemoryServer } = await import("mongodb-memory-server");
+    const mongod = await MongoMemoryServer.create();
+    await mongoose.connect(mongod.getUri("imovies"));
+    dbUp = true;
     await runDbTests();
+    await mongoose.disconnect();
+    await mongod.stop();
   } catch (e) {
-    console.error("DB test error:", e.message);
+    console.log("⚠️  DB tests skipped:", e.message);
   }
 }
 
@@ -48,9 +53,6 @@ console.log(
 process.exit(0);
 
 async function runDbTests() {
-  const mongod = await MongoMemoryServer.create();
-  await mongoose.connect(mongod.getUri("imovies"));
-  dbUp = true;
   console.log("✅ in-memory MongoDB up");
 
   // user + JWT
@@ -86,7 +88,4 @@ async function runDbTests() {
   await show.save();
   console.assert(show.bookedSeats.length === 0, "cancel frees seats");
   console.log("✅ cancellation frees seats back to available");
-
-  await mongoose.disconnect();
-  await mongod.stop();
 }

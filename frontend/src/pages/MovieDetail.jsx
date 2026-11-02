@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import api from "../api";
 import SeatMap from "../components/SeatMap";
 import { useAuth } from "../context/AuthContext";
@@ -11,59 +12,57 @@ export default function MovieDetail() {
 
   const [movie, setMovie] = useState(null);
   const [showtimes, setShowtimes] = useState([]);
-  const [seatLayout, setSeatLayout] = useState({ rows: 6, seatsPerRow: 10 });
+  const [bookingDate, setBookingDate] = useState("");
 
   const [showtimeId, setShowtimeId] = useState(null);
   const [bookedSeats, setBookedSeats] = useState([]);
   const [selected, setSelected] = useState([]);
-  const [message, setMessage] = useState(null);
-  const [booking, setBooking] = useState(null);
 
-  // Load movie + showtimes
+  // Load movie + shows (with optional date filter)
   useEffect(() => {
-    api.get(`/movies/${id}`)
+    api.get(`/movies/${id}`, bookingDate ? { params: { date: bookingDate } } : {})
       .then(({ data }) => {
         setMovie(data.movie);
         setShowtimes(data.showtimes);
+        setBookingDate((d) => d || data.showtimes[0]?.date || "");
         const s = data.showtimes[0];
         if (s) { setShowtimeId(s._id); setBookedSeats(s.bookedSeats); }
-        if (data.seatLayout) {
-          setSeatLayout({ rows: data.seatLayout.rows.length, seatsPerRow: data.seatLayout.seatsPerRow });
-        }
+        else { setShowtimeId(null); setBookedSeats([]); setSelected([]); }
       })
-      .catch(() => setMessage({ type: "danger", text: "Failed to load movie" }));
-  }, [id]);
+      .catch(() => toast.error("Failed to load movie"));
+  }, [id, bookingDate]);
 
   const pickShowtime = (s) => {
     setShowtimeId(s._id);
     setBookedSeats(s.bookedSeats);
     setSelected([]);
-    setMessage(null);
   };
 
-  const toggleSeat = (id) =>
+  const toggleSeat = (seatId) =>
     setSelected((prev) =>
-      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
+      prev.includes(seatId) ? prev.filter((s) => s !== seatId) : [...prev, seatId]
     );
 
   const book = async () => {
     if (!user) {
+      toast.info("Please login to continue with your booking");
       navigate("/login", { state: { from: `/movies/${id}` } });
       return;
     }
     try {
       const { data } = await api.post("/bookings", { showtimeId, seats: selected });
-      setBooking(data);
-      setMessage({ type: "success", text: "Your tickets are booked!" });
+      toast.success("Seats reserved! Redirecting to payment…");
+      // Refresh availability
       setBookedSeats((b) => [...b, ...selected]);
-      setSelected([]);
       setShowtimes((st) =>
         st.map((s) =>
           s._id === showtimeId ? { ...s, bookedSeats: [...s.bookedSeats, ...selected] } : s
         )
       );
+      setSelected([]);
+      navigate(`/bookings/${data._id}`);
     } catch (e) {
-      setMessage({ type: "danger", text: e.response?.data?.message || "Booking failed" });
+      toast.error(e.response?.data?.message || "Booking failed");
       if (e.response?.data?.bookedSeats) setBookedSeats(e.response.data.bookedSeats);
     }
   };
@@ -72,7 +71,6 @@ export default function MovieDetail() {
 
   const dates = [...new Set(showtimes.map((s) => s.date))];
   const currentShowtime = showtimes.find((s) => s._id === showtimeId);
-  const activeBooking = booking && booking.showtime && booking.showtime._id === showtimeId ? booking : null;
 
   return (
     <div className="row g-4">
@@ -91,69 +89,68 @@ export default function MovieDetail() {
 
       {/* Right: booking panel */}
       <div className="col-lg-8">
-        {message && (
-          <div className={`alert alert-${message.type} d-flex justify-content-between`}>
-            <span>{message.text}</span>
-            {activeBooking && (
-              <Link to="/my-bookings" className="alert-link">View in My Bookings →</Link>
-            )}
-          </div>
-        )}
-
         <div className="card mb-2">
           <div className="card-body">
-            <h5 className="mb-3">1. Choose a showtime</h5>
+            <h5 className="mb-3">1. Choose a date &amp; showtime</h5>
+            <select
+              className="form-select mb-3"
+              style={{ maxWidth: 220 }}
+              value={bookingDate}
+              onChange={(e) => setBookingDate(e.target.value)}
+            >
+              {dates.map((d) => (
+                <option key={d} value={d}>{new Date(d).toDateString()}</option>
+              ))}
+            </select>
 
-            {dates.map((d) => (
-              <div key={d} className="mb-3">
-                <p className="fw-semibold mb-2">{new Date(d).toDateString()}</p>
-                <div className="d-flex flex-wrap gap-2">
-                  {showtimes.filter((s) => s.date === d).map((s) => (
-                    <button
-                      key={s._id}
-                      onClick={() => pickShowtime(s)}
-                      className={`btn btn-sm ${s._id === showtimeId ? "btn-danger" : "btn-outline-secondary"} text-start`}
-                    >
-                      <div>{s.time}</div>
-                      <div className="small opacity-75">{s.theater} · ₹{s.price}</div>
-                    </button>
-                  ))}
-                </div>
+            {showtimes.length === 0 ? (
+              <p className="text-secondary">No shows on this date.</p>
+            ) : (
+              <div className="d-flex flex-wrap gap-2">
+                {showtimes.map((s) => (
+                  <button
+                    key={s._id}
+                    onClick={() => pickShowtime(s)}
+                    className={`btn btn-sm ${s._id === showtimeId ? "btn-danger" : "btn-outline-secondary"} text-start`}
+                  >
+                    <div>{s.time}</div>
+                    <div className="small opacity-75">
+                      {s.theatre?.name} · {s.theatre?.city}
+                    </div>
+                    <div className="small fw-semibold">₹{s.price}</div>
+                  </button>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         </div>
 
         <div className="card">
           <div className="card-body">
             <h5 className="mb-1">2. Pick your seats</h5>
-            <p className="text-secondary small">
-              {currentShowtime && (
-                <>Total seats: 60 · Available: {60 - bookedSeats.length}</>
-              )}
-            </p>
+            {currentShowtime && (
+              <p className="text-secondary small">
+                Total seats: 60 · Available: {60 - bookedSeats.length} <span className="fw-semibold">· live availability</span>
+              </p>
+            )}
             {showtimes.length === 0 ? (
-              <p className="text-center text-secondary py-3">No shows scheduled yet.</p>
+              <p className="text-center text-secondary py-3">No shows scheduled for this date.</p>
             ) : (
               <>
                 <SeatMap
                   bookedSeats={bookedSeats}
                   selected={selected}
                   onSelect={toggleSeat}
-                  rowsCount={seatLayout.rows}
-                  seatsPerRow={seatLayout.seatsPerRow}
+                  rowsCount={6}
+                  seatsPerRow={10}
                 />
                 <div className="d-flex justify-content-between align-items-center mt-3 pt-3 border-top">
                   <span className="text-secondary">
                     {selected.length} ticket(s) · Total{" "}
                     <strong>₹{currentShowtime ? (currentShowtime.price * selected.length).toFixed(2) : 0}</strong>
                   </span>
-                  <button
-                    className="btn btn-danger"
-                    disabled={selected.length === 0}
-                    onClick={book}
-                  >
-                    {user ? "Book Now" : "Login to Book"}
+                  <button className="btn btn-danger" disabled={selected.length === 0} onClick={book}>
+                    {user ? "Proceed to Payment" : "Login to Book"}
                   </button>
                 </div>
               </>

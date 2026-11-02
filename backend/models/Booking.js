@@ -20,6 +20,19 @@ const bookingSchema = new mongoose.Schema(
       default: "confirmed",
     },
     bookingRef: { type: String, unique: true },
+    // Payment integration workflow (mock gateway)
+    paymentStatus: {
+      type: String,
+      enum: ["pending", "paid", "refunded"],
+      default: "pending",
+    },
+    payment: {
+      method: { type: String },
+      cardHolder: { type: String },
+      transactionId: { type: String },
+      amount: { type: Number },
+      paidAt: { type: Date },
+    },
   },
   { timestamps: true }
 );
