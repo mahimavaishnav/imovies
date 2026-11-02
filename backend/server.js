@@ -7,6 +7,7 @@ import authRoutes from "./routes/auth.js";
 import movieRoutes from "./routes/movies.js";
 import showtimeRoutes from "./routes/showtimes.js";
 import bookingRoutes from "./routes/bookings.js";
+import theatreRoutes from "./routes/theatres.js";
 
 const app = express();
 
@@ -53,9 +54,17 @@ app.use(async (_req, res, next) => {
     res.status(503).json({ message: "Database connection failed: " + e.message });
   }
 });
+const allowedOrigins = (process.env.CLIENT_URL || "http://localhost:5173")
+  .split(",")
+  .concat(["http://localhost:5173", "http://localhost:4173"]);
+// Vercel issues extra aliases (project-team domains) and per-deploy preview URLs — allow any *.vercel.app
+const vercelApp = /^https:\/\/[a-z0-9-]+\.vercel\.app$/;
 app.use(
   cors({
-    origin: (process.env.CLIENT_URL || "http://localhost:5173").split(","), // e.g. "http://localhost:5173,https://imovies.vercel.app"
+    origin: (origin, cb) => {
+      if (!origin || allowedOrigins.includes(origin) || vercelApp.test(origin)) return cb(null, true);
+      cb(new Error("Not allowed by CORS"));
+    },
     credentials: true,
   })
 );
@@ -81,6 +90,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/movies", movieRoutes);
 app.use("/api/showtimes", showtimeRoutes);
 app.use("/api/bookings", bookingRoutes); // also serves /api/bookings/:bookingId/pay
+app.use("/api/theatres", theatreRoutes);
 
 // ---------- 404 + error handler (centralized error handling/logging) ----------
 app.use((req, res) => res.status(404).json({ message: "Route not found" }));

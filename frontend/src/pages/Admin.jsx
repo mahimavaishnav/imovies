@@ -18,6 +18,8 @@ export default function Admin() {
   const [form, setForm] = useState(emptyMovie);
   const [editId, setEditId] = useState(null);
   const [showForm, setShowForm] = useState({ movieId: "", theatreId: "", date: "", time: "06:30 PM", price: 10 });
+  const emptyTheatre = { name: "", city: "" };
+  const [theatreForm, setTheatreForm] = useState(emptyTheatre);
 
   const isAdmin = user?.role === "admin";
 
@@ -25,14 +27,11 @@ export default function Admin() {
     try {
       const [m, t, s] = await Promise.all([
         api.get("/movies", { params: { limit: 100 } }),
-        api.get("/showtimes", { params: {} }),
+        api.get("/theatres"),
         api.get("/showtimes"),
       ]);
       setMovies(m.data.movies);
-      // collect theatres present in shows
-      const map = new Map();
-      s.data.forEach((x) => x.theatre && map.set(x.theatre._id, x.theatre));
-      setTheatres([...map.values()]);
+      setTheatres(t.data);
       setShows(s.data);
     } catch (e) {
       toast.error(e.response?.data?.message || "Failed to load admin data");
@@ -57,7 +56,17 @@ export default function Admin() {
   /* ─── movie form submit: create or update (full CRUD) ─── */
   const saveMovie = async (e) => {
     e.preventDefault();
-    const payload = { ...form, genre: [form.genre], duration: +form.duration, releaseYear: +form.releaseYear };
+    // Explicit payload — never ships stale fields (_id, timestamps) with a PUT
+    const payload = {
+      title: form.title,
+      description: form.description,
+      genre: [form.genre],
+      language: form.language,
+      duration: +form.duration,
+      rating: form.rating,
+      poster: form.poster,
+      releaseYear: +form.releaseYear,
+    };
     try {
       if (editId) {
         await api.put(`/movies/${editId}`, payload);
@@ -115,6 +124,30 @@ export default function Admin() {
     try {
       await api.delete(`/showtimes/${id}`);
       toast.success("Show deleted");
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Delete failed");
+    }
+  };
+
+  /* ─── theatre management (full CRUD) ─── */
+  const saveTheatre = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post("/theatres", { name: theatreForm.name, city: theatreForm.city });
+      toast.success("Theatre added");
+      setTheatreForm(emptyTheatre);
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Could not add theatre");
+    }
+  };
+
+  const deleteTheatre = async (t) => {
+    if (!confirm(`Delete theatre "${t.name}" (${t.city})?`)) return;
+    try {
+      await api.delete(`/theatres/${t._id}`);
+      toast.success("Theatre deleted");
       load();
     } catch (err) {
       toast.error(err.response?.data?.message || "Delete failed");
@@ -277,17 +310,42 @@ export default function Admin() {
       )}
 
       {tab === "theatres" && (
-        <div className="row g-3">
-          {theatres.map((t) => (
-            <div className="col-md-6 col-lg-4" key={t._id}>
-              <div className="card text-center shadow-sm" style={{ border: 0 }}>
-                <div className="card-body">
-                  <h5>🏛 {t.name}</h5>
-                  <p className="text-secondary mb-0">📍 {t.city}</p>
-                </div>
+        <div className="row g-4">
+          <div className="col-lg-5">
+            <div className="card" style={{ border: 0 }}>
+              <div className="card-body">
+                <h5>➕ Add theatre</h5>
+                <form onSubmit={saveTheatre}>
+                  <input className="form-control mb-2" placeholder="Theatre name (e.g. PVR Cinemas)" required
+                    value={theatreForm.name} onChange={(e) => setTheatreForm({ ...theatreForm, name: e.target.value })} />
+                  <input className="form-control mb-3" placeholder="City (e.g. Hyderabad)" required
+                    value={theatreForm.city} onChange={(e) => setTheatreForm({ ...theatreForm, city: e.target.value })} />
+                  <button className="btn btn-danger">Add theatre</button>
+                </form>
+                <p className="text-secondary small mt-3 mb-0">
+                  Theatres are used in the "Schedule a show" dropdown. A theatre can only be deleted when no shows reference it.
+                </p>
               </div>
             </div>
-          ))}
+          </div>
+          <div className="col-lg-7">
+            <div className="table-responsive">
+              <table className="table align-middle bg-white shadow-sm" style={{ borderRadius: 10 }}>
+                <thead><tr><th>Theatre</th><th>City</th><th className="text-end">Actions</th></tr></thead>
+                <tbody>
+                  {theatres.map((t) => (
+                    <tr key={t._id}>
+                      <td className="fw-semibold">🏛 {t.name}</td>
+                      <td><small className="text-secondary">📍 {t.city}</small></td>
+                      <td className="text-end">
+                        <button className="btn btn-sm btn-outline-danger" onClick={() => deleteTheatre(t)}>Delete</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -18,19 +18,31 @@ export default function MovieDetail() {
   const [bookedSeats, setBookedSeats] = useState([]);
   const [selected, setSelected] = useState([]);
 
-  // Load movie + shows (with optional date filter)
+  // Load movie + ALL its shows once; date/showtime filtering happens client-side
+  // (avoids the dropdown collapsing to a single date after a re-fetch)
   useEffect(() => {
-    api.get(`/movies/${id}`, bookingDate ? { params: { date: bookingDate } } : {})
+    api.get(`/movies/${id}`)
       .then(({ data }) => {
         setMovie(data.movie);
         setShowtimes(data.showtimes);
-        setBookingDate((d) => d || data.showtimes[0]?.date || "");
-        const s = data.showtimes[0];
-        if (s) { setShowtimeId(s._id); setBookedSeats(s.bookedSeats); }
-        else { setShowtimeId(null); setBookedSeats([]); setSelected([]); }
+        const first = data.showtimes[0];
+        setBookingDate((d) => d || first?.date || "");
+        if (first) { setShowtimeId(first._id); setBookedSeats(first.bookedSeats); }
       })
       .catch(() => toast.error("Failed to load movie"));
-  }, [id, bookingDate]);
+  }, [id]);
+
+  // Keep the selected showtime valid when the date changes
+  const dateShowtimes = showtimes.filter((s) => s.date === bookingDate);
+  useEffect(() => {
+    const s = dateShowtimes[0];
+    if (!s) { setShowtimeId(null); setBookedSeats([]); setSelected([]); return; }
+    if (!dateShowtimes.some((x) => x._id === showtimeId)) {
+      setShowtimeId(s._id);
+      setBookedSeats(s.bookedSeats);
+      setSelected([]);
+    }
+  }, [bookingDate, showtimes]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pickShowtime = (s) => {
     setShowtimeId(s._id);
@@ -39,9 +51,14 @@ export default function MovieDetail() {
   };
 
   const toggleSeat = (seatId) =>
-    setSelected((prev) =>
-      prev.includes(seatId) ? prev.filter((s) => s !== seatId) : [...prev, seatId]
-    );
+    setSelected((prev) => {
+      if (prev.includes(seatId)) return prev.filter((s) => s !== seatId);
+      if (prev.length >= 10) {
+        toast.info("Maximum 10 seats per booking");
+        return prev;
+      }
+      return [...prev, seatId];
+    });
 
   const book = async () => {
     if (!user) {
@@ -103,11 +120,11 @@ export default function MovieDetail() {
               ))}
             </select>
 
-            {showtimes.length === 0 ? (
+            {dateShowtimes.length === 0 ? (
               <p className="text-secondary">No shows on this date.</p>
             ) : (
               <div className="d-flex flex-wrap gap-2">
-                {showtimes.map((s) => (
+                {dateShowtimes.map((s) => (
                   <button
                     key={s._id}
                     onClick={() => pickShowtime(s)}
@@ -133,7 +150,7 @@ export default function MovieDetail() {
                 Total seats: 60 · Available: {60 - bookedSeats.length} <span className="fw-semibold">· live availability</span>
               </p>
             )}
-            {showtimes.length === 0 ? (
+            {dateShowtimes.length === 0 ? (
               <p className="text-center text-secondary py-3">No shows scheduled for this date.</p>
             ) : (
               <>
