@@ -12,15 +12,36 @@ const app = express();
 
 /* ---------- DB connection (serverless-safe) ---------- */
 async function connectDB() {
-  // Reuse cached connection across warm serverless invocations
+  // Already connected — nothing to do
   if (mongoose.connection.readyState === 1) return;
-  if (!global.__mongoConnecting) {
-    global.__mongoConnecting = mongoose
-      .connect(process.env.MONGO_URI)
-      .then(() => console.log(`✅ MongoDB connected: ${mongoose.connection.host}`))
-      .catch((e) => console.error(`❌ MongoDB connection error: ${e.message}`));
+
+  // A previous attempt is in flight — wait for it
+  if (global.__mongoConnecting) {
+    try {
+      await global.__mongoConnecting;
+    } catch {
+      global.__mongoConnecting = null; // failed attempt — allow a retry
+    }
+    if (mongoose.connection.readyState === 1) return;
+    if (mongoose.connection.readyState > 0) {
+      // readyState 2/3 stuck — discard so we can reconnect
+      await mongoose.connection.close().catch(() => {});
+    }
   }
-  await global.__mongoConnecting;
+
+  global.__mongoConnecting = (async () => {
+    const conn = await mongoose.connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 10000,
+    });
+    console.log(`✅ MongoDB connected: ${conn.connection.host}`);
+  })();
+
+  try {
+    await global.__mongoConnecting;
+  } catch (e) {
+    global.__mongoConnecting = null;
+    throw new Error("MongoDB unreachable: " + e.message);
+  }
 }
 
 app.set("trust proxy", 1); // safe behind Render/Vercel proxies
